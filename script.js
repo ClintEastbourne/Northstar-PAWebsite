@@ -15,27 +15,55 @@ const year = document.querySelector('#year');
 if (year) year.textContent = new Date().getFullYear();
 
 
-// Hero photo animation: hover on desktop; tap to toggle on touch devices.
+// Hero photo animation: start on hover (desktop) or tap (touch). Each video
+// cycle is followed by a two-second still-image pause before replaying.
 (() => {
   const media = document.querySelector('.hero-media');
   if (!media) return;
   const video = media.querySelector('.hero-video');
   const hint = media.querySelector('.media-hint');
   const hoverCapable = window.matchMedia('(hover: hover) and (pointer: fine)');
-  const setPlaying = (playing) => {
-    media.classList.toggle('is-playing', playing);
-    media.setAttribute('aria-pressed', String(playing));
-    if (hint) hint.innerHTML = playing ? 'Tap to return to the photo <span aria-hidden="true">↺</span>' : 'Hover or tap to see the animation <span aria-hidden="true">▶</span>';
-    if (playing) {
-      const promise = video.play();
-      if (promise && promise.catch) promise.catch(() => media.classList.remove('is-playing'));
-    } else {
-      video.pause();
-      try { video.currentTime = 0; } catch (_) {}
-    }
+  let active = false;
+  let stillTimer = null;
+
+  const showStill = () => {
+    media.classList.remove('is-playing');
+    media.setAttribute('aria-pressed', String(active));
   };
-  media.addEventListener('mouseenter', () => { if (hoverCapable.matches) setPlaying(true); });
-  media.addEventListener('mouseleave', () => { if (hoverCapable.matches) setPlaying(false); });
-  media.addEventListener('click', () => { if (!hoverCapable.matches) setPlaying(!media.classList.contains('is-playing')); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) setPlaying(false); });
+  const playCycle = () => {
+    if (!active) return;
+    clearTimeout(stillTimer);
+    showStill();
+    try { video.currentTime = 0; } catch (_) {}
+    const promise = video.play();
+    if (promise && promise.catch) promise.catch(() => { active = false; showStill(); });
+    media.classList.add('is-playing');
+    media.setAttribute('aria-pressed', 'true');
+  };
+  const start = () => {
+    if (active) return;
+    active = true;
+    if (hint) hint.innerHTML = 'Playing animation <span aria-hidden="true">▶</span>';
+    playCycle();
+  };
+  const stop = () => {
+    active = false;
+    clearTimeout(stillTimer);
+    video.pause();
+    showStill();
+    if (hint) hint.innerHTML = 'Hover or tap to see the animation <span aria-hidden="true">▶</span>';
+  };
+
+  video.addEventListener('ended', () => {
+    if (!active) return;
+    video.pause();
+    showStill();
+    stillTimer = setTimeout(() => {
+      if (active) playCycle();
+    }, 2000);
+  });
+  media.addEventListener('mouseenter', () => { if (hoverCapable.matches) start(); });
+  media.addEventListener('mouseleave', () => { if (hoverCapable.matches) stop(); });
+  media.addEventListener('click', () => { if (!hoverCapable.matches) active ? stop() : start(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
 })();
